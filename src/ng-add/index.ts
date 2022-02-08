@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 import { chain, Rule, SchematicContext, Tree } from '@angular-devkit/schematics';
 import { confirm } from '../util/prompt/confirm';
-import { loginToAzure, loginToAzureWithCI } from '../util/azure/auth';
+import { loginToAzureWithCI } from '../util/azure/auth';
 import { DeviceTokenCredentials, AuthResponse } from '@azure/ms-rest-nodeauth';
-import { selectSubscription } from '../util/azure/subscription';
+// import { selectSubscription } from '../util/azure/subscription';
 import { getResourceGroup } from '../util/azure/resource-group';
 import { getAccount, getAzureStorageClient } from '../util/azure/account';
 import { AngularWorkspace } from '../util/workspace/angular-json';
 import { generateAzureJson, readAzureJson, getAzureHostingConfig } from '../util/workspace/azure-json';
 import { AddOptions } from '../util/shared/types';
+import { getLocalGitBranches, selectDeploymentBranch } from '../util/git/branches';
+import { getRepoURL } from '../util/git/remote';
+import { getGitHubOAuthToken } from '../util/github/auth';
+// import { WebSiteManagementClient } from '@azure/arm-appservice';
 
 export function ngAdd(_options: AddOptions): Rule {
   return (tree: Tree, _context: SchematicContext) => {
@@ -33,7 +37,7 @@ export function addDeployAzure(_options: AddOptions): Rule {
         _context.logger.info(`CI mode detected`);
         auth = await loginToAzureWithCI(_context.logger);
         // the AZURE_SUBSCRIPTION_ID variable is validated inside the loginToAzureWithCI
-        // so we have the guarrantee that the value is not empty.
+        // so we have the guarantee that the value is not empty.
         subscription = process.env.AZURE_SUBSCRIPTION_ID as string;
 
         // make sure the project property is set correctly
@@ -43,30 +47,56 @@ export function addDeployAzure(_options: AddOptions): Rule {
           project: project.projectName,
         };
       } else {
-        auth = await loginToAzure(_context.logger);
-        subscription = await selectSubscription(auth.subscriptions, _options, _context.logger);
+        // auth = await loginToAzure(_context.logger);
+        // subscription = await selectSubscription(auth.subscriptions, _options, _context.logger);
       }
+
+      const remoteURL = await getRepoURL();
+      await confirm(`The repository remote URL is ${remoteURL}, is that correct?`, true);
+
+      const gitBranches = await getLocalGitBranches();
+      let selectedBranch = null;
+      while (!selectedBranch?.deploymentBranch.remote) {
+        selectedBranch = await selectDeploymentBranch(gitBranches, _options, _context.logger);
+        if (!selectedBranch.deploymentBranch.remote) {
+          _context.logger.warn(
+            `The deployment branch must be remote.` +
+              ` Please create the branch in the remote repository or select a different branch.`
+          );
+        }
+      }
+      _context.logger.info('selected branch: ' + JSON.stringify(selectedBranch));
+
+      // get GitHub token for OAuth app
+      const gitHubToken = await getGitHubOAuthToken();
+      console.log(gitHubToken);
 
       const credentials = auth.credentials as DeviceTokenCredentials;
       const resourceGroup = await getResourceGroup(credentials, subscription, _options, _context.logger);
-      const client = getAzureStorageClient(credentials, subscription);
-      const account = await getAccount(client, resourceGroup, _options, _context.logger);
 
-      const appDeployConfig = {
-        project: project.projectName,
-        target: project.target,
-        configuration: project.configuration,
-        path: project.path,
-      };
+      if (_options.storage) {
+        const client = getAzureStorageClient(credentials, subscription);
+        const account = await getAccount(client, resourceGroup, _options, _context.logger);
 
-      const azureDeployConfig = {
-        subscription,
-        resourceGroupName: resourceGroup.name,
-        account,
-      };
+        const appDeployConfig = {
+          project: project.projectName,
+          target: project.target,
+          configuration: project.configuration,
+          path: project.path,
+        };
 
-      // TODO: log url for account at Azure portal
-      generateAzureJson(tree, appDeployConfig, azureDeployConfig);
+        const azureDeployConfig = {
+          subscription,
+          resourceGroupName: resourceGroup.name,
+          account,
+        };
+
+        // TODO: log url for account at Azure portal
+        generateAzureJson(tree, appDeployConfig, azureDeployConfig);
+      } else {
+        // deploy with SWA
+        // const client = new WebSiteManagementClient(credentials, subscription);
+      }
     }
 
     await project.addLogoutArchitect();

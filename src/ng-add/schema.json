@@ -52,6 +52,12 @@
       "default": true,
       "description": "Send usage reports to Microsoft.",
       "alias": "t"
+    },
+    "storage": {
+      "type": "boolean",
+      "default": false,
+      "description": "Use an Azure Storage account to deploy, instead of Static Web Apps.",
+      "alias": "s"
     }
   },
   "required": [],

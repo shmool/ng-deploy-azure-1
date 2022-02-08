@@ -24,5 +24,6 @@ export interface AddOptions {
   config?: boolean;
   dry?: boolean;
   telemetry?: boolean;
+  storage?: boolean;
   '--'?: string[];
 }

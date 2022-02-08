@@ -2,10 +2,18 @@
   "$schema": "node_modules/@angular-devkit/schematics/collection-schema.json",
   "schematics": {
     "ng-add": {
-      "description": "Adds Angular Deploy Azure to the application without affecting any templates",
+      "description": "Configures and deploys the app to Azure without affecting any templates",
       "factory": "./out/ng-add/index#ngAdd",
       "schema": "./out/ng-add/schema.json",
       "aliases": ["install"]
+    },
+    "github-token": {
+      "description": "Gets GitHub OAuth token",
+      "factory": "./out/schematics/github"
+    },
+    "swa": {
+      "description": "Creates a Static Web App resource on Azure, which commits a workflow file into the GitHub repository",
+      "factory": "./out/schematics/swa"
     }
   }
 }
