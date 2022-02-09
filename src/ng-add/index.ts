@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import { chain, Rule, SchematicContext, Tree } from '@angular-devkit/schematics';
 import { confirm } from '../util/prompt/confirm';
-import { loginToAzureWithCI } from '../util/azure/auth';
-import { DeviceTokenCredentials, AuthResponse } from '@azure/ms-rest-nodeauth';
-// import { selectSubscription } from '../util/azure/subscription';
 import { getResourceGroup } from '../util/azure/resource-group';
-import { getAccount, getAzureStorageClient } from '../util/azure/account';
 import { AngularWorkspace } from '../util/workspace/angular-json';
-import { generateAzureJson, readAzureJson, getAzureHostingConfig } from '../util/workspace/azure-json';
+import { readAzureJson, getAzureHostingConfig } from '../util/workspace/azure-json';
 import { AddOptions } from '../util/shared/types';
 import { getLocalGitBranches, selectDeploymentBranch } from '../util/git/branches';
 import { getRepoURL } from '../util/git/remote';
 import { getGitHubOAuthToken } from '../util/github/auth';
-// import { WebSiteManagementClient } from '@azure/arm-appservice';
+import { loginToAzure } from '../util/azure/identity';
+import { TokenCredential } from '@azure/core-auth';
+import { deploy } from '../util/azure/static-web-app';
 
 export function ngAdd(_options: AddOptions): Rule {
   return (tree: Tree, _context: SchematicContext) => {
@@ -31,24 +29,18 @@ export function addDeployAzure(_options: AddOptions): Rule {
     const hostingConfig = azureJson ? getAzureHostingConfig(azureJson, project.projectName) : null;
 
     if (!hostingConfig || (await confirm(`Overwrite existing Azure config for ${project.projectName}?`))) {
-      let auth = {} as AuthResponse;
+      let auth = {} as TokenCredential;
       let subscription = '';
-      if (process.env['CI']) {
-        _context.logger.info(`CI mode detected`);
-        auth = await loginToAzureWithCI(_context.logger);
-        // the AZURE_SUBSCRIPTION_ID variable is validated inside the loginToAzureWithCI
-        // so we have the guarantee that the value is not empty.
-        subscription = process.env.AZURE_SUBSCRIPTION_ID as string;
 
-        // make sure the project property is set correctly
-        // this is needed when creating a storage account
-        _options = {
-          ..._options,
-          project: project.projectName,
-        };
+      // TODO: Fix CI authentication to use @azure/identity
+      if (process.env['CI']) {
       } else {
-        // auth = await loginToAzure(_context.logger);
-        // subscription = await selectSubscription(auth.subscriptions, _options, _context.logger);
+        const azureService = await loginToAzure(_context.logger, _options);
+        if (!azureService.credentials || !azureService.selectedSubscriptionId) {
+          throw new Error('No credentials or no subscription for Azure provided.');
+        }
+        auth = azureService.credentials;
+        subscription = azureService.selectedSubscriptionId;
       }
 
       const remoteURL = await getRepoURL();
@@ -65,37 +57,57 @@ export function addDeployAzure(_options: AddOptions): Rule {
           );
         }
       }
-      _context.logger.info('selected branch: ' + JSON.stringify(selectedBranch));
+      _context.logger.info('selected branch: ' + selectedBranch.deploymentBranch.id);
 
       // get GitHub token for OAuth app
       const gitHubToken = await getGitHubOAuthToken();
-      console.log(gitHubToken);
 
-      const credentials = auth.credentials as DeviceTokenCredentials;
+      const credentials = auth;
       const resourceGroup = await getResourceGroup(credentials, subscription, _options, _context.logger);
 
       if (_options.storage) {
-        const client = getAzureStorageClient(credentials, subscription);
-        const account = await getAccount(client, resourceGroup, _options, _context.logger);
+        /* const client = getAzureStorageClient(credentials, subscription);
+         const account = await getAccount(client, resourceGroup, _options, _context.logger);
 
-        const appDeployConfig = {
-          project: project.projectName,
-          target: project.target,
-          configuration: project.configuration,
-          path: project.path,
-        };
+         const appDeployConfig = {
+           project: project.projectName,
+           target: project.target,
+           configuration: project.configuration,
+           path: project.path,
+         };
 
-        const azureDeployConfig = {
-          subscription,
-          resourceGroupName: resourceGroup.name,
-          account,
-        };
+         const azureDeployConfig = {
+           subscription,
+           resourceGroupName: resourceGroup.name,
+           account,
+         };
 
-        // TODO: log url for account at Azure portal
-        generateAzureJson(tree, appDeployConfig, azureDeployConfig);
+         // TODO: log url for account at Azure portal
+         generateAzureJson(tree, appDeployConfig, azureDeployConfig);*/
       } else {
+        const azureInfo = {
+          credentials: credentials,
+          subscriptionId: subscription,
+          resourceGroup: resourceGroup.name,
+        };
+
+        const gitHubInfo = {
+          branch: selectedBranch.deploymentBranch.id,
+          repositoryUrl: remoteURL,
+          token: gitHubToken,
+        };
+
+        const appInfo = {
+          appName: project.projectName,
+          outputPath: project.path,
+        };
         // deploy with SWA
         // const client = new WebSiteManagementClient(credentials, subscription);
+        const deployRes = await deploy(azureInfo, gitHubInfo, appInfo);
+
+        _context.logger.info(`Deployed 🚀🚀🚀 visit your new website at https://${deployRes.defaultHostname} , 
+You can view the process the the deployment here: ${deployRes.repositoryUrl}/actions, 
+enjoy!`);
       }
     }
 

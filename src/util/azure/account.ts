@@ -1,7 +1,8 @@
-/*---------------------------------------------------------------------------------------------
+/*
+/!*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------------------------*!/
 import { StorageManagementClient } from '@azure/arm-storage';
 import { newItemPrompt } from '../prompt/list';
 import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
@@ -42,10 +43,10 @@ export async function getAccount(
     const normalizedProjectNameArray = options.project.match(/[a-zA-Z0-9]/g);
     let normalizedProjectName = normalizedProjectNameArray ? normalizedProjectNameArray.join('') : '';
 
-    /* 
+    /!*
     ensures project name + 'static' does not overshoot 24 characters (which is the Azure requirement on an account name)
     additionally it needs to be lowercase (in case we have Angular project like e.g `ExampleApp`)
-    */
+    *!/
     normalizedProjectName = normalizedProjectName.toLowerCase().substring(0, 18);
     return `ngd${normalizedProjectName}cxa`;
   }
@@ -171,3 +172,4 @@ export async function createWebContainer(
     },
   });
 }
+*/

@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { DeviceTokenCredentials } from '@azure/ms-rest-nodeauth';
 import { filteredList } from '../prompt/list';
 import { getLocation, locations, StorageLocation } from './locations';
 import { AddOptions, Logger } from '../shared/types';
 import { generateName } from '../prompt/name-generator';
 import { getResourceGroups, ResourceGroupDetails, createResourceGroup } from './resource-group-helper';
 import { spinner } from '../prompt/spinner';
+import { TokenCredential } from '@azure/core-auth';
 
 const defaultLocation = {
   id: 'westus',
@@ -39,7 +39,7 @@ const locationPromptOptions = {
 };
 
 export async function getResourceGroup(
-  creds: DeviceTokenCredentials,
+  creds: TokenCredential,
   subscription: string,
   options: AddOptions,
   logger: Logger

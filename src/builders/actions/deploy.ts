@@ -6,16 +6,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as glob from 'glob';
 import { lookup, charset } from 'mime-types';
-import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import { BlobServiceClient } from '@azure/storage-blob';
 import * as promiseLimit from 'promise-limit';
 import * as ProgressBar from 'progress';
 import { BuilderContext, Target } from '@angular-devkit/architect';
 import { AzureHostingConfig } from '../../util/workspace/azure-json';
-import { StorageManagementClient } from '@azure/arm-storage';
-import { getAccountKey } from '../../util/azure/account';
-import * as chalk from 'chalk';
-import { loginToAzure, loginToAzureWithCI } from '../../util/azure/auth';
-import { AuthResponse } from '@azure/ms-rest-nodeauth';
+import { loginToAzure } from '../../util/azure/identity';
 
 export default async function deploy(
   context: BuilderContext,
@@ -40,14 +36,15 @@ export default async function deploy(
     throw new Error('Azure hosting config is missing some details. Please run "ng add @azure/ng-deploy"');
   }
 
-  let auth = {} as AuthResponse;
+  let azureService;
   if (process.env['CI']) {
     context.logger.info(`CI mode detected`);
-    auth = await loginToAzureWithCI(context.logger);
+    // auth = await loginToAzureWithCI(context.logger);
   } else {
-    auth = await loginToAzure(context.logger);
+    azureService = await loginToAzure(context.logger);
   }
-  const credentials = await auth.credentials;
+  const credentials = azureService?.credentials;
+  console.log(credentials);
 
   context.logger.info('Preparing for deployment');
 
@@ -77,7 +74,6 @@ export default async function deploy(
         context.logger.warn(`Target was executed but does not provide a result file path.
         Fetching files from the path configured in azure.json: ${azureHostingConfig.app.path}`);
         filesPath = path.join(projectRoot, azureHostingConfig.app.path);
-        console.log(filesPath);
       }
     }
   } else if (azureHostingConfig.app.path) {
@@ -94,29 +90,29 @@ export default async function deploy(
     throw new Error('Target did not produce any files, or the path is incorrect.');
   }
 
-  const client = new StorageManagementClient(credentials, azureHostingConfig.azureHosting.subscription);
+  /*  const client = new StorageManagementClient(credentials, azureHostingConfig.azureHosting.subscription);
   const accountKey = await getAccountKey(
     azureHostingConfig.azureHosting.account,
     client,
     azureHostingConfig.azureHosting.resourceGroupName
-  );
+  );*/
 
-  const sharedKeyCredential = new StorageSharedKeyCredential(azureHostingConfig.azureHosting.account, accountKey);
+  // const sharedKeyCredential = new StorageSharedKeyCredential(azureHostingConfig.azureHosting.account, accountKey);
 
-  const blobServiceClient = new BlobServiceClient(
+  /*const blobServiceClient = new BlobServiceClient(
     `https://${azureHostingConfig.azureHosting.account}.blob.core.windows.net`,
     sharedKeyCredential
   );
+*/
+  // await uploadFilesToAzure(blobServiceClient, context, filesPath, files);
 
-  await uploadFilesToAzure(blobServiceClient, context, filesPath, files);
-
-  const accountProps = await client.storageAccounts.getProperties(
+  /*const accountProps = await client.storageAccounts.getProperties(
     azureHostingConfig.azureHosting.resourceGroupName,
     azureHostingConfig.azureHosting.account
   );
   const endpoint = accountProps.primaryEndpoints && accountProps.primaryEndpoints.web;
-
-  context.logger.info(chalk.green(`see your deployed site at ${endpoint}`));
+*/
+  // context.logger.info(chalk.green(`see your deployed site at ${endpoint}`));
   // TODO: log url for account at Azure portal
 }
 

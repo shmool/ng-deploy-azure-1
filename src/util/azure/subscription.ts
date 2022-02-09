@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { LinkedSubscription } from '@azure/ms-rest-nodeauth';
 import { prompt } from 'inquirer';
 import { AddOptions, Logger } from '../shared/types';
+import { Subscription } from './azure-types';
 
 export async function selectSubscription(
-  subs: LinkedSubscription[] | undefined,
+  subs: Subscription[] | undefined,
   options: AddOptions,
   logger: Logger
 ): Promise<string> {
@@ -23,10 +23,10 @@ export async function selectSubscription(
     const subProvided = !!options.subscriptionId || !!options.subscriptionName;
     const foundSub = subs.find((sub) => {
       // TODO: provided id and name might be of different subscriptions or one with typo
-      return sub.id === options.subscriptionId || sub.name === options.subscriptionName;
+      return sub.id === options.subscriptionId || sub.displayName === options.subscriptionName;
     });
 
-    if (foundSub) {
+    if (foundSub && foundSub.id) {
       return foundSub.id;
     } else if (subProvided) {
       logger.warn(`The provided subscription ID does not exist.`);
@@ -34,17 +34,17 @@ export async function selectSubscription(
 
     if (subs.length === 1) {
       if (subProvided) {
-        logger.warn(`Using subscription ${subs[0].name} - ${subs[0].id}`);
+        logger.warn(`Using subscription ${subs[0].displayName} - ${subs[0].id}`);
       }
-      return subs[0].id;
+      return subs[0].id ?? '';
     } else {
       const { sub } = await prompt<{ sub: any }>([
         {
           type: 'list',
           name: 'sub',
           choices: subs.map((choice) => ({
-            name: `${choice.name} – ${choice.id}`,
-            value: choice.id,
+            name: `${choice.displayName} – ${choice.subscriptionId}`,
+            value: choice.subscriptionId,
           })),
           message: 'Under which subscription should we put this static site?',
         },
